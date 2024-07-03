@@ -26,16 +26,26 @@ argsp.add_argument(
 )
 
 
-class Repository(object):
+class Repository:
     """The repository class."""
 
     worktree = None
     git_directory = None
     conf = None
 
-    def __init__(self, path, new_repo=False):
-        self.worktree = path
-        self.git_directory = os.path.join(path, ".git")
+    def __init__(self, path: str, new_repo: bool = False):
+        self.worktree = os.path.abspath(path)
+        self.git_directory = os.path.join(self.worktree, ".git")
+
+
+class GitObject:
+    def __init__(self, data=None):
+        if data != None:
+            self.deserialize(data)
+
+    def deserialize(self, repo):
+        # Not Implemented
+        pass
 
 
 # Helper Functions
@@ -50,16 +60,50 @@ def default_config():
     return parser
 
 
-def find_root(current_path="."):
+def find_root(current_path: str = ".") -> str:
+    """Searches for root directory in current and parent directory and returns the path of the root."""
     path = os.path.realpath(current_path)
     if path == "/":
         raise Exception("No Git repository exists")
     find_root(os.path.join(path, ".."))
 
 
-def create_dir(repo: Repository, *path) -> str:
+def create_dir(repo: Repository, *path: tuple) -> str:
     """Create the directory at path relative to repository.git_directory"""
     os.makedirs(os.path.join(repo.git_directory, *path), exist_ok=True)
+
+
+def parse_object(repo: Repository, sha: str):
+    path = f"{repo.git_directory}/objects/{sha[:2]}/{sha[2:]}"
+    if not os.path.isfile(path):
+        return None
+
+    with open(path, "rb") as f:
+        raw_file = zlib.decompress(f.read())
+
+        # Read the object type (i.e. commit, tree, log, blob)
+        header_separator = raw_file.find(b" ")
+        object_type = raw_file[:header_separator].decode("ascii")
+
+        # Read the object size
+        header_ending = raw_file.find(b"\x00", header_separator)
+        size = int(raw_file[header_separator:header_ending].decode("ascii"))
+
+        if size != len(raw_file) - header_ending - 1:
+            raise Exception(f"File at {path} has mismatched object size.")
+
+        match object_type:
+            case "commit":
+                cmd = GitCommit
+            case "tree":
+                cmd = GitTree
+            case "tag":
+                cmd = GitTag
+            case "blob":
+                cmd = GitBlob
+            case _:
+                raise Exception(f"Invalid Object Type f{object_type}")
+    return cmd(raw_file[header_ending + 1 :])
 
 
 # Main Commands
@@ -92,6 +136,8 @@ def init(path="."):
 
 
 def main(argv=sys.argv[1:]):
+    repo = Repository(".")
+    parse_object(repo, "8c897dcc9d3a0588cf0367f8ca035fcca9175f79")
     args = argparser.parse_args(argv)
     match args.command:
         case "init":
