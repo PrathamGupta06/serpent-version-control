@@ -47,11 +47,15 @@ class GitObject:
         # Not Implemented
         pass
 
+    def serialize(self, repo):
+        # Not Implemented
+        pass
+
 
 # Helper Functions
 
 
-def default_config():
+def default_config() -> configparser.ConfigParser:
     parser = configparser.ConfigParser()
     parser.add_section("core")
     parser.set("core", "repositoryformatversion", "0")
@@ -68,12 +72,12 @@ def find_root(current_path: str = ".") -> str:
     find_root(os.path.join(path, ".."))
 
 
-def create_dir(repo: Repository, *path: tuple) -> str:
+def create_dir(repo: Repository, path: str) -> str:
     """Create the directory at path relative to repository.git_directory"""
-    os.makedirs(os.path.join(repo.git_directory, *path), exist_ok=True)
+    os.makedirs(os.path.join(repo.git_directory, path), exist_ok=True)
 
 
-def parse_object(repo: Repository, sha: str):
+def read_object(repo: Repository, sha: str) -> object:
     path = f"{repo.git_directory}/objects/{sha[:2]}/{sha[2:]}"
     if not os.path.isfile(path):
         return None
@@ -106,18 +110,40 @@ def parse_object(repo: Repository, sha: str):
     return cmd(raw_file[header_ending + 1 :])
 
 
+def get_sha(obj: object) -> str:
+    # The object should have its own serialization function
+    data = obj.serialize()
+    # Add header
+    data = obj.type + b" " + str(len(data)).encode() + b"\x00" + data
+    sha1 = hashlib.sha1(data).hexdigest()
+    return sha1
+
+
+def write_object(repo: Repository, obj: object) -> None:
+    sha = get_sha(obj)
+    dir_path = f"{repo.git_directory}/objects/{sha[0:2]}"
+    create_dir(dir_path)
+    obj_path = f"{dir_path}/{sha[2:]}"
+    with open(obj_path, "wb") as f:
+        # Write the zlib compressed sha
+        f.write(zlib.compress(sha))
+
+
 # Main Commands
 def init(path="."):
+    # Create repo object
     repo = Repository(os.path.abspath(path), True)
+    # Check if git is not already initialized and that the work path is a directory
     if os.path.exists(repo.git_directory):
         raise Exception(f"Git directory already exists at {repo.git_directory}.")
     if os.path.exists(repo.worktree) and not os.path.isdir(repo.worktree):
         raise Exception(f"{repo.worktree} already exists but is not a directory.")
+    # Create Required Directories
     os.makedirs(repo.worktree, exist_ok=True)
     create_dir(repo, "branches")
     create_dir(repo, "objects")
-    create_dir(repo, "refs", "heads")
-    create_dir(repo, "refs", "tags")
+    create_dir(repo, "refs/heads")
+    create_dir(repo, "refs/tags")
     # .git/description
     with open(os.path.join(repo.git_directory, "description"), "w") as desc_file:
         desc_file.write(
@@ -136,8 +162,6 @@ def init(path="."):
 
 
 def main(argv=sys.argv[1:]):
-    repo = Repository(".")
-    parse_object(repo, "8c897dcc9d3a0588cf0367f8ca035fcca9175f79")
     args = argparser.parse_args(argv)
     match args.command:
         case "init":
