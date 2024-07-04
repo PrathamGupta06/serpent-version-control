@@ -54,6 +54,16 @@ class GitObject:
         pass
 
 
+class GitBlob(GitObject):
+    object_type = b"blob"
+
+    def serialize(self):
+        return self.blobdata
+
+    def deserialize(self):
+        self.blobdata = data
+
+
 # Helper Functions
 
 
