@@ -14,15 +14,17 @@ import zlib
 argparser = argparse.ArgumentParser(
     description="Serpent Version Control System (SVC): A friendly and helpful serpent."
 )
-argsubparsers = argparser.add_subparsers(title="Commands", dest="command")
-argsubparsers.required = True
-argsp = argsubparsers.add_parser("init", help="Initialize an empty git repository.")
-argsp.add_argument(
-    "path",
+subparser = argparser.add_subparsers(title="Commands", dest="command")
+subparser.required = True
+# Subparsers
+# Init
+added_parser = subparser.add_parser("init", help="Create an empty Git repository.")
+added_parser.add_argument(
+    "directory",
     metavar="directory",
     nargs="?",
     default=".",
-    help="Where to create the repository.",
+    help="Initializes the git repository in this directory. Creates the directory if it does not exist.",
 )
 
 
@@ -64,9 +66,11 @@ def default_config() -> configparser.ConfigParser:
     return parser
 
 
-def find_root(current_path: str = ".") -> str:
+def find_root(current_path: str = ".") -> Repository:
     """Searches for root directory in current and parent directory and returns the path of the root."""
     path = os.path.realpath(current_path)
+    if os.path.isdir(os.path.join(path, ".git")):
+        return Repository(path)
     if path == "/":
         raise Exception("No Git repository exists")
     find_root(os.path.join(path, ".."))
