@@ -79,6 +79,21 @@ class GitBlob(GitObject):
         self.blobdata = data
 
 
+class GitCommit(GitObject):
+    # TODO: Implement the commit object
+    pass
+
+
+class GitTree(GitObject):
+    # TODO: Implement the tree object
+    pass
+
+
+class GitTag(GitObject):
+    # TODO: Implement the tag object
+    pass
+
+
 # Helper Functions
 
 
