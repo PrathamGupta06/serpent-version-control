@@ -17,14 +17,29 @@ argparser = argparse.ArgumentParser(
 subparser = argparser.add_subparsers(title="Commands", dest="command")
 subparser.required = True
 # Subparsers
-# Init
-added_parser = subparser.add_parser("init", help="Create an empty Git repository.")
-added_parser.add_argument(
+#   Init
+init_parser = subparser.add_parser("init", help="Create an empty Git repository.")
+init_parser.add_argument(
     "directory",
     metavar="directory",
     nargs="?",
     default=".",
     help="Initializes the git repository in this directory. Creates the directory if it does not exist.",
+)
+
+#   cat-file
+cat_file_parser = subparser.add_parser(
+    "cat-file", help="rovide contents or details of repository objects"
+)
+cat_file_parser.add_argument(
+    "type",
+    metavar="type",
+    choices=["blob", "commit", "tag", "tree"],
+    help="The type of object to display.",
+)
+
+cat_file_parser.add_argument(
+    "object", metavar="object", help="The name of the object to show."
 )
 
 
@@ -60,7 +75,7 @@ class GitBlob(GitObject):
     def serialize(self):
         return self.blobdata
 
-    def deserialize(self):
+    def deserialize(self, data):
         self.blobdata = data
 
 
@@ -143,6 +158,10 @@ def write_object(repo: Repository, obj: object) -> None:
         f.write(zlib.compress(sha))
 
 
+def find_object(repo: Repository, name: str, object_type: bytes = None) -> str:
+    return name
+
+
 # Main Commands
 def init(path="."):
     # Create repo object
@@ -175,10 +194,20 @@ def init(path="."):
     return repo
 
 
+def cat_file(repo: Repository, obj_ref: str, object_type: bytes = None) -> None:
+    # First get the object reference of the respective type
+    obj = read_object(repo, find_object(repo, obj_ref, object_type))
+    # Print the object using the object's serialization function
+    sys.stdout.buffer.write(obj.serialize())
+
+
 def main(argv=sys.argv[1:]):
     args = argparser.parse_args(argv)
     match args.command:
         case "init":
             init(args.path)
+        case "cat-file":
+            repo = find_root()
+            cat_file(repo, args.object, object_type=args.type.encode())
         case _:
             print("Invalid Command")
