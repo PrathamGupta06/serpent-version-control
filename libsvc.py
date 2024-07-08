@@ -42,6 +42,30 @@ cat_file_parser.add_argument(
     "object", metavar="object", help="The name of the object to show."
 )
 
+#   hash-object
+#   ./svc hash-object [-w] [-t TYPE] FILE
+
+hash_object_parser = subparser.add_parser(
+    "hash-object", help="Compute object ID and optionally creates a blob from a file."
+)
+hash_object_parser.add_argument(
+    "-t",
+    metavar="type",
+    dest="type",
+    choices=["blob", "commit", "tag", "tree"],
+    default="blob",
+    help="Specify the type",
+)
+
+hash_object_parser.add_argument(
+    "-w",
+    dest="write",
+    action="store_true",
+    help="Actually write the object into the database",
+)
+
+hash_object_parser.add_argument("path", help="Read object from <file>")
+
 
 class Repository:
     """The repository class."""
@@ -158,7 +182,7 @@ def get_sha(obj: object) -> str:
     # The object should have its own serialization function
     data = obj.serialize()
     # Add header
-    data = obj.type + b" " + str(len(data)).encode() + b"\x00" + data
+    data = obj.object_type + b" " + str(len(data)).encode() + b"\x00" + data
     sha1 = hashlib.sha1(data).hexdigest()
     return sha1
 
@@ -216,6 +240,27 @@ def cat_file(repo: Repository, obj_ref: str, object_type: bytes = None) -> None:
     sys.stdout.buffer.write(obj.serialize())
 
 
+def hash_object(
+    object_path: str, object_type: bytes, write: bool, repo: Repository = None
+) -> str:
+    with open(object_path, "rb") as f:
+        data = f.read()
+    match object_type:
+        case b"commit":
+            obj = GitCommit(data)
+        case b"tree":
+            obj = GitTree(data)
+        case b"tag":
+            obj = GitTag(data)
+        case b"blob":
+            obj = GitBlob(data)
+        case _:
+            raise Exception(f"Unknown object type {object_type}")
+    if write:
+        write_object(obj, repo)
+    return get_sha(obj)
+
+
 def main(argv=sys.argv[1:]):
     args = argparser.parse_args(argv)
     match args.command:
@@ -224,5 +269,12 @@ def main(argv=sys.argv[1:]):
         case "cat-file":
             repo = find_root()
             cat_file(repo, args.object, object_type=args.type.encode())
+        case "hash-object":
+            if args.write:
+                repo = find_root()
+            else:
+                repo = None
+            sha = hash_object(args.path, args.type.encode(), args.write, repo)
+            print(sha)
         case _:
             print("Invalid Command")
